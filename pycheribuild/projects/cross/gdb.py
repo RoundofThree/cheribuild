@@ -27,7 +27,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-import os
+import os, sys
 import shutil
 
 from .crosscompileproject import (
@@ -165,6 +165,7 @@ class BuildGDBBase(CrossCompileAutotoolsProject):
                     self.configure_args.append(f"--with-gmp={self.target_info.localbase}")
                     self.configure_args.append(f"--with-mpfr={self.target_info.localbase}")
             self.configure_args.append("--with-expat")
+            self.configure_args.append("--with-python=" + sys.executable)
         else:
             self.configure_args.extend(["--without-python", "--without-expat", "--without-libunwind-ia64"])
             self.configure_environment.update(
