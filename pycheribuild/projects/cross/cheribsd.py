@@ -748,6 +748,14 @@ class BuildFreeBSD(BuildFreeBSDBase):
         cls.build_drm_kmod = cls.add_bool_option(
             "build-drm-kmod", help="Also build drm-kmod during buildkernel", show_help=False
         )
+        cls.with_past_local_vulnerabilities = cls.add_bool_option(
+            "with-past-local-vulns",
+            help="Enable selected past local vulnerabilities for research purposes. This is off by default.", show_help=False
+        )
+        cls.with_past_remote_vulnerabilities = cls.add_bool_option(
+            "with-past-remote-vulns",
+            help="Enable selected past remote vulnerabilities for research purposes. This is off by default.", show_help=False
+        )
         if cls._xtarget is None or not cls._xtarget.cpu_architecture.is_32bit():
             cls.build_lib32 = cls.add_bool_option(
                 "build-lib32",
@@ -841,6 +849,10 @@ class BuildFreeBSD(BuildFreeBSDBase):
         # Enable building makefs/mkimg/etdump so we can create disk images and
         # release media.
         self.make_args.set_with_options(DISK_IMAGE_TOOLS_BOOTSTRAP=True)
+
+        # Don't enable past vulnerabilities by default
+        self.make_args.set_with_options(ENABLE_PAST_LOCAL_VULNERABILITIES=self.with_past_local_vulnerabilities)
+        self.make_args.set_with_options(ENABLE_PAST_REMOTE_VULNERABILITIES=self.with_past_remote_vulnerabilities)
 
         # Compatibility for versions where WITH_DISK_IMAGE_TOOLS_BOOTSTRAP has
         # not been MFC'ed (i.e. FreeBSD 14 and below, and CheriBSD 22.12).
