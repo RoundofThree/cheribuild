@@ -838,6 +838,26 @@ class BuildFreeBSD(BuildFreeBSDBase):
             # provide one then debug info will be omitted.
             self.make_args.set_with_options(DEBUG_FILES=False)
 
+        # Enable building makefs/mkimg/etdump so we can create disk images and
+        # release media.
+        self.make_args.set_with_options(DISK_IMAGE_TOOLS_BOOTSTRAP=True)
+
+        # Compatibility for versions where WITH_DISK_IMAGE_TOOLS_BOOTSTRAP has
+        # not been MFC'ed (i.e. FreeBSD 14 and below, and CheriBSD 22.12).
+        # Must be set in the environment so it remains lazily evaluated for
+        # recursive makes.
+        #
+        # TODO: Remove once no longer needed.
+        #
+        # NB: makefs depends on libnetbsd which will not be bootstrapped on
+        # FreeBSD, and the same goes for libsbuf in recent versions since
+        # config(8) no longer depends on it.
+        self.make_args.set_env(
+            LOCAL_XTOOL_DIRS=(
+                "${MK_DISK_IMAGE_TOOLS_BOOTSTRAP:D:Ulib/libnetbsd lib/libsbuf usr.sbin/makefs usr.bin/mkimg}"
+            )
+        )
+
         if self.add_custom_make_options:
             self.make_args.set_with_options(PROFILE=False)  # PROFILE is useless and just slows down the build
             # The OFED code is unlikely to be of any use to us and is also full of annoying warnings that flood the
@@ -845,11 +865,6 @@ class BuildFreeBSD(BuildFreeBSDBase):
             self.make_args.set_with_options(OFED=False)
             # Don't build manpages by default
             self.make_args.set_with_options(MAN=self.with_manpages)
-            # we want to build makefs for the disk image (makefs depends on libnetbsd which will not be
-            # bootstrapped on FreeBSD, and the same goes for libsbuf in recent versions since config(8) no longer
-            # depends on it)
-            # TODO: upstream a patch to bootstrap them by default
-            self.make_args.set(LOCAL_XTOOL_DIRS="lib/libnetbsd lib/libsbuf usr.sbin/makefs usr.bin/mkimg")
             # Enable MALLOC_PRODUCTION by default unless --<tgt>/build-type=Debug is passed.
             self.make_args.set_with_options(MALLOC_PRODUCTION=self.build_type.is_release)
 
@@ -1099,25 +1114,35 @@ class BuildFreeBSD(BuildFreeBSDBase):
         return kernel_options
 
     def clean(self) -> ThreadJoiner:
-        cleaning_kerneldir = False
-        builddir = self.build_dir
+        cleaning_kerneldirs = False
+        builddirs = None
         if self.config.skip_world:
-            kernel_dir = self.kernel_objdir(self.kernel_config)
-            print(kernel_dir)
-            if kernel_dir and kernel_dir.parent.exists():
-                builddir = kernel_dir
-                cleaning_kerneldir = True
-                if kernel_dir.exists() and self.build_dir.exists():
-                    assert not os.path.relpath(str(kernel_dir.resolve()), str(self.build_dir.resolve())).startswith(
-                        ".."
-                    ), builddir
-            else:
-                self.warning("Do not know the full path to the kernel build directory, will clean the whole tree!")
+            kernel_dirs = [self.kernel_objdir(k) for k in self.kernconf_list()]
+            for kernel_dir in kernel_dirs:
+                print(kernel_dir)
+                if kernel_dir and kernel_dir.parent.exists():
+                    if builddirs is None:
+                        builddirs = []
+                    builddirs.append(kernel_dir)
+                    cleaning_kerneldirs = True
+                    if kernel_dir.exists() and self.build_dir.exists():
+                        assert not os.path.relpath(str(kernel_dir.resolve()), str(self.build_dir.resolve())).startswith(
+                            ".."
+                        ), kernel_dir
+            if builddirs is None:
+                self.warning("Do not know the full path to any kernel build directories, will clean the whole tree!")
+        if builddirs is None:
+            builddirs = [self.build_dir]
+        clean_kwargs = {}
         if self.crossbuild:
             # avoid rebuilding bmake when crossbuilding:
-            return self.async_clean_directory(builddir, keep_root=not cleaning_kerneldir, keep_dirs=["bmake-install"])
-        else:
-            return self.async_clean_directory(builddir)
+            # XXX: Should keep_root be conditional on crossbuild?
+            clean_kwargs["keep_root"] = not cleaning_kerneldirs
+            clean_kwargs["keep_dirs"] = ["bmake-install"]
+        joiner = ThreadJoiner()
+        for builddir in builddirs:
+            joiner += self.async_clean_directory(builddir, **clean_kwargs)
+        return joiner
 
     def _list_kernel_configs(self) -> None:
         """Emit a list of valid kernel configurations that can be given as --kernel-config overrides"""
@@ -1321,6 +1346,11 @@ class BuildFreeBSD(BuildFreeBSDBase):
                 return None
             query_args = args.copy()
             query_args.set_command(bmake_binary)
+            # --freebsd/toolchain=bootstrap ends up here before its setup has
+            # initialised the environment, so make sure that's correct when
+            # querying .OBJDIR lest the wrong value be cached.
+            if "MAKEOBJDIRPREFIX" not in query_args.env_vars:
+                query_args.set_env(MAKEOBJDIRPREFIX=str(self.build_dir))
             bw_flags = [
                 *query_args.all_commandline_args(self.config),
                 "BUILD_WITH_STRICT_TMPPATH=0",
@@ -1339,7 +1369,7 @@ class BuildFreeBSD(BuildFreeBSDBase):
             # https://github.com/freebsd/freebsd/commit/1edb3ba87657e28b017dffbdc3d0b3a32999d933
             cmd = self.run_cmd(
                 [bmake_binary, *bw_flags],
-                env=args.env_vars,
+                env=query_args.env_vars,
                 cwd=self.source_dir,
                 run_in_pretend_mode=True,
                 capture_output=True,
