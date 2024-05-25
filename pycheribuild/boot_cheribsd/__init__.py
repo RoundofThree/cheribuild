@@ -890,7 +890,7 @@ def boot_cheribsd(
     *,
     write_disk_image_changes: bool,
     expected_kernel_abi: str,
-    smp_args: "list[str]",
+    smp_args: "Optional[int]" = None,
     smb_dirs: "Optional[list[SmbMount]]" = None,
     kernel_init_only=False,
     trap_on_unrepresentable=False,
@@ -928,8 +928,8 @@ def boot_cheribsd(
         add_network_device=True,
         trap_on_unrepresentable=trap_on_unrepresentable,  # For debugging
         add_virtio_rng=True,  # faster entropy gathering
+        qemu_smp=smp_args,
     )
-    qemu_args.extend(smp_args)
     kernel_commandline = []
     if qemu_options.can_boot_kernel_directly and kernel_image and boot_alternate_kernel_dir:
         kernel_commandline.append(f"kern.module_path={boot_alternate_kernel_dir}")
@@ -1615,7 +1615,7 @@ def _main(
         ssh_pubkey=Path(args.ssh_key) if args.ssh_key is not None else None,
         smb_dirs=args.smb_mount_directories,
         kernel_init_only=args.test_kernel_init_only,
-        smp_args=["-smp", str(args.qemu_smp)] if args.qemu_smp else [],
+        smp_args=int(args.qemu_smp) if args.qemu_smp else None,
         trap_on_unrepresentable=args.trap_on_unrepresentable,
         skip_ssh_setup=args.skip_ssh_setup,
         bios_path=args.bios,

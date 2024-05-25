@@ -536,6 +536,7 @@ class LaunchQEMUBase(SimpleProject):
             trap_on_unrepresentable=self.config.trap_on_unrepresentable,
             debugger_on_cheri_trap=self.config.debugger_on_cheri_trap,
             add_virtio_rng=self._add_virtio_rng,
+            qemu_smp=self.config.qemu_smp,
         )
         qemu_command += self._project_specific_options + self._after_disk_options + monitor_options
         qemu_command += logfile_options + self.extra_qemu_options + virtfs_args

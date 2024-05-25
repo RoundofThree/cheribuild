@@ -412,6 +412,13 @@ class CheriConfig(ConfigBase):
             help="Raise a CHERI exception when capabilities become unreprestable instead of detagging. Useful for "
             "debugging, but deviates from the spec, and therefore off by default.",
         )
+        self.qemu_smp = loader.add_option(
+            "qemu-smp",
+            type=int,
+            default=None,
+            group=loader.run_group,
+            help="Run QEMU with SMP",
+        )
         self.debugger_on_cheri_trap = loader.add_bool_option(
             "qemu-gdb-break-on-cheri-trap",
             default=False,

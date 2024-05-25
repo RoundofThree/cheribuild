@@ -167,6 +167,7 @@ class QemuOptions:
         add_network_device=True,
         bios_args: "Optional[list[str]]" = None,
         trap_on_unrepresentable=False,
+        qemu_smp: "Optional[int]" = None,
         debugger_on_cheri_trap=False,
         add_virtio_rng=False,
         write_disk_image_changes=True,
@@ -202,6 +203,8 @@ class QemuOptions:
             result.extend(self.user_network_args(user_network_args))
         if add_virtio_rng:
             result.extend(["-device", "virtio-rng-pci"])
+        if qemu_smp:
+            result.extend(["-smp", str(qemu_smp)])
         return result
 
 
