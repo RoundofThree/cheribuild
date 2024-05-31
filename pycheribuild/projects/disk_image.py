@@ -217,6 +217,9 @@ class BuildDiskImageBase(SimpleProject):
         cls.no_autoboot = cls.add_bool_option(
             "no-autoboot", default=False, help="Disable autoboot and boot menu for targets that use loader(8)"
         )
+        cls.no_pan = cls.add_bool_option(
+            "no-pan", default=False, help="Disable AArch64 PAN feature"
+        )
 
     def check_system_dependencies(self) -> None:
         super().check_system_dependencies()
@@ -515,6 +518,8 @@ class BuildDiskImageBase(SimpleProject):
                 self.warning("--no-autoboot is not supported for this target, ignoring.")
         if self.rootfs_type == FileSystemType.ZFS:
             loader_conf_contents += 'zfs_load="YES"\n'
+        if self.no_pan:
+            loader_conf_contents += 'machdep.mitigations.enable_pan="0"\n'
         self.create_file_for_image("/boot/loader.conf", contents=loader_conf_contents, mode=0o644)
 
         # Avoid long boot time on first start due to missing entropy:
