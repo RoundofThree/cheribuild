@@ -519,7 +519,7 @@ class BuildDiskImageBase(SimpleProject):
         if self.rootfs_type == FileSystemType.ZFS:
             loader_conf_contents += 'zfs_load="YES"\n'
         if self.no_pan:
-            loader_conf_contents += 'machdep.mitigations.enable_pan="0"\n'
+            loader_conf_contents += 'machdep.mitigations.pan.disable="1"\n'
         self.create_file_for_image("/boot/loader.conf", contents=loader_conf_contents, mode=0o644)
 
         # Avoid long boot time on first start due to missing entropy:
