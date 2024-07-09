@@ -51,6 +51,7 @@ from ..project import (
     MakeCommandKind,
     MakeOptions,
     Project,
+    ReuseOtherProjectBuildDir,
     ReuseOtherProjectRepository,
 )
 from ..simple_project import SimpleProject, TargetAliasWithDependencies, _clear_line_sequence, flush_stdio
@@ -72,11 +73,6 @@ def _arch_suffixed_custom_install_dir(prefix: str) -> "ComputedDefaultValue[Path
     return ComputedDefaultValue(function=inner, as_string="$INSTALL_ROOT/" + prefix + "-<arch>")
 
 
-def freebsd_reuse_build_dir(config: CheriConfig, project: "SimpleProject") -> Path:
-    build_freebsd = BuildFreeBSD.get_instance(project, config)
-    return build_freebsd.default_build_dir(config, build_freebsd)
-
-
 def cheribsd_reuse_build_dir(config: CheriConfig, project: "SimpleProject") -> Path:
     build_cheribsd = BuildCHERIBSD.get_instance(project, config)
     return build_cheribsd.default_build_dir(config, build_cheribsd)
@@ -94,6 +90,7 @@ class KernelABI(Enum):
     NOCHERI = "no-cheri"
     HYBRID = "hybrid"
     PURECAP = "purecap"
+    PURECAP_BENCHMARK = "purecap-benchmark"
 
 
 class ConfigPlatform(Enum):
@@ -164,6 +161,9 @@ class KernelConfigFactory:
             if platform in self.platform_name_map:
                 return self.platform_name_map[platform]
         assert False, "Should not be reached..."
+
+    def get_available_kabis(self) -> "list[KernelABI]":
+        return [KernelABI.NOCHERI, KernelABI.HYBRID, KernelABI.PURECAP]
 
     def get_flag_names(
         self,
@@ -244,7 +244,7 @@ class RISCVKernelConfigFactory(KernelConfigFactory):
     def make_all(self) -> "list[CheriBSDConfig]":
         configs = []
         # Generate QEMU kernels
-        for kernel_abi in KernelABI:
+        for kernel_abi in self.get_available_kabis():
             configs.append(self.make_config({ConfigPlatform.QEMU}, kernel_abi, default=True))
             configs.append(self.make_config({ConfigPlatform.QEMU}, kernel_abi, benchmark=True, default=True))
             configs.append(self.make_config({ConfigPlatform.QEMU}, kernel_abi, mfsroot=True, default=True))
@@ -252,7 +252,7 @@ class RISCVKernelConfigFactory(KernelConfigFactory):
                 self.make_config({ConfigPlatform.QEMU}, kernel_abi, mfsroot=True, benchmark=True, default=True)
             )
         # Generate FPGA kernels
-        for kernel_abi in KernelABI:
+        for kernel_abi in self.get_available_kabis():
             configs.append(self.make_config({ConfigPlatform.GFE}, kernel_abi, mfsroot=True, default=True))
             configs.append(
                 self.make_config({ConfigPlatform.GFE}, kernel_abi, mfsroot=True, benchmark=True, default=True)
@@ -264,7 +264,7 @@ class RISCVKernelConfigFactory(KernelConfigFactory):
         configs.append(self.make_config({ConfigPlatform.QEMU}, KernelABI.HYBRID, fett=True, default=True))
 
         # Caprevoke kernels
-        for kernel_abi in KernelABI:
+        for kernel_abi in self.get_available_kabis():
             configs.append(self.make_config({ConfigPlatform.QEMU}, kernel_abi, nocaprevoke=True, default=True))
             configs.append(
                 self.make_config({ConfigPlatform.QEMU}, kernel_abi, nocaprevoke=True, benchmark=True, default=True)
@@ -299,11 +299,17 @@ class AArch64KernelConfigFactory(KernelConfigFactory):
             return "MORELLO"
         elif kernel_abi == KernelABI.PURECAP:
             return f"MORELLO{self.separator}PURECAP"
+        elif kernel_abi == KernelABI.PURECAP_BENCHMARK:
+            return f"MORELLO{self.separator}PURECAP{self.separator}BENCHMARK"
+
+    def get_available_kabis(self) -> "list[KernelABI]":
+        abis = super().get_available_kabis()
+        return [*abis, KernelABI.PURECAP_BENCHMARK]
 
     def make_all(self) -> "list[CheriBSDConfig]":
         configs = []
         # Generate QEMU/FVP kernels
-        for kernel_abi in KernelABI:
+        for kernel_abi in self.get_available_kabis():
             configs.append(self.make_config({ConfigPlatform.QEMU, ConfigPlatform.FVP}, kernel_abi, default=True))
             configs.append(
                 self.make_config({ConfigPlatform.QEMU, ConfigPlatform.FVP}, kernel_abi, default=True, benchmark=True)
@@ -312,7 +318,7 @@ class AArch64KernelConfigFactory(KernelConfigFactory):
                 self.make_config({ConfigPlatform.QEMU, ConfigPlatform.FVP}, kernel_abi, default=True, mfsroot=True)
             )
         # Caprevoke kernels
-        for kernel_abi in KernelABI:
+        for kernel_abi in self.get_available_kabis():
             configs.append(
                 self.make_config({ConfigPlatform.QEMU, ConfigPlatform.FVP}, kernel_abi, default=True, nocaprevoke=True)
             )
@@ -1877,7 +1883,7 @@ class BuildCHERIBSD(BuildFreeBSD):
             _allow_unknown_targets=True,
             only_add_for_targets=cls.purecap_kernel_targets,
             kind=KernelABI,
-            default=KernelABI.HYBRID,
+            default=KernelABI.PURECAP,
             enum_choices=[KernelABI.HYBRID, KernelABI.PURECAP],
             help="Select default kernel to build",
         )
@@ -1890,6 +1896,17 @@ class BuildCHERIBSD(BuildFreeBSD):
             only_add_for_targets=cls.purecap_kernel_targets,
             default=True,
             help="Also build kernels with non-default ABI (purecap or hybrid)",
+        )
+
+        cls.build_benchmark_abi_kernels = cls.add_bool_option(
+            "build-benchmark-abi-kernels",
+            show_help=True,
+            only_add_for_targets=(
+                CompilationTargets.CHERIBSD_MORELLO_HYBRID,
+                CompilationTargets.CHERIBSD_MORELLO_PURECAP,
+            ),
+            default=False,
+            help="Also build Morello Benchmark ABI kernels",
         )
 
         cls.build_bench_kernels = cls.add_bool_option(
@@ -1958,6 +1975,10 @@ class BuildCHERIBSD(BuildFreeBSD):
         if self.crosscompile_target in self.purecap_kernel_targets and self.build_alternate_abi_kernels:
             other_abi = KernelABI.PURECAP if default_kernel_abi != KernelABI.PURECAP else KernelABI.HYBRID
             kernel_abis.append(other_abi)
+        if self.build_benchmark_abi_kernels and default_kernel_abi != KernelABI.PURECAP_BENCHMARK:
+            # Enable benchmark ABI kernels
+            kernel_abis.append(KernelABI.PURECAP_BENCHMARK)
+
         return kernel_abis
 
     def _get_all_kernel_configs(self) -> "list[CheriBSDConfig]":
@@ -2259,9 +2280,7 @@ class BuildFreeBSDRelease(BuildFreeBSDReleaseMixin, BuildFreeBSD):
     dependencies: "tuple[str, ...]" = ("freebsd",)
     repository: ReuseOtherProjectRepository = ReuseOtherProjectRepository(source_project=BuildFreeBSD)
     _always_add_suffixed_targets: bool = True
-    default_build_dir: ComputedDefaultValue[Path] = ComputedDefaultValue(
-        function=freebsd_reuse_build_dir, as_string=lambda cls: BuildFreeBSD.project_build_dir_help()
-    )
+    _build_dir: ReuseOtherProjectBuildDir = ReuseOtherProjectBuildDir(build_project=BuildFreeBSD)
     _default_install_dir_fn: ComputedDefaultValue[Path] = _arch_suffixed_custom_install_dir("freebsd-release")
     # We want the FreeBSD config options as well so the release installworld,
     # distributeworld etc. calls match what was built.
@@ -2273,9 +2292,7 @@ class BuildCheriBSDRelease(BuildFreeBSDReleaseMixin, BuildCHERIBSD):
     dependencies: "tuple[str, ...]" = ("cheribsd",)
     repository: ReuseOtherProjectRepository = ReuseOtherProjectRepository(source_project=BuildCHERIBSD)
     _always_add_suffixed_targets: bool = True
-    default_build_dir: ComputedDefaultValue[Path] = ComputedDefaultValue(
-        function=cheribsd_reuse_build_dir, as_string=lambda cls: BuildCHERIBSD.project_build_dir_help()
-    )
+    _build_dir: ReuseOtherProjectBuildDir = ReuseOtherProjectBuildDir(build_project=BuildCHERIBSD)
     _default_install_dir_fn: ComputedDefaultValue[Path] = _arch_suffixed_custom_install_dir("cheribsd-release")
     # We want the CheriBSD config options as well so the release installworld,
     # distributeworld etc. calls match what was built.

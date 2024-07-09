@@ -710,7 +710,7 @@ class AbstractLaunchFreeBSD(LaunchQEMUBase, LaunchFreeBSDInterface):
             "kernel-abi",
             show_help=True,
             kind=KernelABI,
-            enum_choices=[KernelABI.HYBRID, KernelABI.PURECAP],
+            enum_choices=[KernelABI.HYBRID, KernelABI.PURECAP, KernelABI.PURECAP_BENCHMARK],
             help="Select extra kernel variant with the given ABI to run.",
         )
 
