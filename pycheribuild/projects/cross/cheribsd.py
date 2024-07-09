@@ -1192,7 +1192,7 @@ class BuildFreeBSD(BuildFreeBSDBase):
         if not self.use_bootstrapped_toolchain and not self.CC.exists():
             self.fatal("Requested build of kernel with external toolchain, but", self.CC, "doesn't exist!")
         if self.debug_kernel:
-            if any(x.endswith(("_BENCHMARK", "-NODEBUG")) for x in kernconfs):
+            if any(x.endswith(("_BENCHMARK")) for x in kernconfs):
                 if not self.query_yes_no("Trying to build BENCHMARK kernel without optimization. Continue?"):
                     return
             kernel_make_args.set(COPTFLAGS="-O0 -DBOOTVERBOSE=2")
