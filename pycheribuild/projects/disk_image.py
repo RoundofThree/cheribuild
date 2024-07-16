@@ -220,6 +220,9 @@ class BuildDiskImageBase(SimpleProject):
         cls.no_pan = cls.add_bool_option(
             "no-pan", default=False, help="Disable AArch64 PAN feature"
         )
+        cls.is_syzkaller = cls.add_bool_option(
+            "is-syzkaller", default=False, help="Configure /boot/loader.conf as required to run syzkaller guest"
+        )
 
     def check_system_dependencies(self) -> None:
         super().check_system_dependencies()
@@ -520,6 +523,8 @@ class BuildDiskImageBase(SimpleProject):
             loader_conf_contents += 'zfs_load="YES"\n'
         if self.no_pan:
             loader_conf_contents += 'machdep.mitigations.pan.disable="1"\n'
+        if self.is_syzkaller:
+            loader_conf_contents += 'autoboot_delay="-1"\nconsole="comconsole"\nkern.kstack_pages="7"'
         self.create_file_for_image("/boot/loader.conf", contents=loader_conf_contents, mode=0o644)
 
         # Avoid long boot time on first start due to missing entropy:
