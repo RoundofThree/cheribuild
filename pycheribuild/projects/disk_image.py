@@ -519,7 +519,7 @@ class BuildDiskImageBase(SimpleProject):
         if self.rootfs_type == FileSystemType.ZFS:
             loader_conf_contents += 'zfs_load="YES"\n'
         if self.is_syzkaller:
-            loader_conf_contents += 'autoboot_delay="-1"\nconsole="comconsole"\nkern.kstack_pages="7"'
+            loader_conf_contents += 'autoboot_delay="-1"\nconsole="comconsole"\nkern.kstack_pages="10"'
         self.create_file_for_image("/boot/loader.conf", contents=loader_conf_contents, mode=0o644)
 
         # Avoid long boot time on first start due to missing entropy:
