@@ -40,7 +40,7 @@ from .crosscompileproject import (
     DefaultInstallDir,
     GitRepository,
 )
-from .llvm import BuildCheriLLVM, BuildLLVMMonoRepoBase, BuildUpstreamLLVM, extra_llvm_lit_opts
+from .llvm import BuildMorelloLLVM, BuildCheriLLVM, BuildLLVMMonoRepoBase, BuildUpstreamLLVM, extra_llvm_lit_opts
 from ..build_qemu import BuildQEMU
 from ..cmake_project import CMakeProject
 from ..project import ReuseOtherProjectDefaultTargetRepository
@@ -355,8 +355,7 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
 
     # The following have to be set in subclasses
     llvm_project: "typing.ClassVar[type[BuildLLVMMonoRepoBase]]"
-    # TODO: add compiler-rt
-    _enabled_runtimes: "typing.ClassVar[tuple[str, ...]]" = ("libunwind", "libcxxabi", "libcxx")
+    _enabled_runtimes: "typing.ClassVar[tuple[str, ...]]" = ("libunwind", "libcxxabi", "libcxx", "compiler-rt")
     test_against_running_qemu_instance = False
     test_localhost_via_ssh = False
 
@@ -431,7 +430,8 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
         ]
 
     def add_asan_flags(self):
-        # Use asan+ubsan
+        # Use asan
+        # TODO: ubsan
         self.add_cmake_options(LLVM_USE_SANITIZER="Address")
 
     def add_msan_flags(self):
@@ -466,7 +466,13 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
                 COMPILER_RT_DEBUG=False,
                 COMPILER_RT_TEST_COMPILER_CFLAGS=self.commandline_to_str(self.essential_compiler_and_linker_flags),
                 CMAKE_LINKER=self.target_info.linker,  # set to ld.lld to ensure compiler-rt tests run
+                COMPILER_RT_BUILD_SANITIZERS=True,
+                LLVM_BUILD_EXTERNAL_COMPILER_RT=True,
+                COMPILER_RT_BUILD_ORC=False, # it is not yet supported
+                COMPILER_RT_DEFAULT_TARGET_TRIPLE=self.target_info.target_triple,
+                LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=False,
             )
+
             if self.get_compiler_info(self.CC).is_clang:
                 # Some of the tests (most/only compiler-rt) want to find the LLVM utilities. Make sure that the ones
                 # from the compiler are picked up rather than whatever system-wide LLVM happens to be installed.
@@ -760,6 +766,10 @@ class BuildUpstreamCompilerRtRuntimesBuild(_UpstreamLLVMMixin, BuildCompilerRtRu
 
 class BuildUpstreamCompilerRtRuntimesBuildWithHostCompiler(_HostCompilerMixin, BuildUpstreamCompilerRtRuntimesBuild):
     target = "upstream-compiler-rt-runtimes-build-with-host-compiler"
+
+class BuildMorelloCompilerRtRuntimesBuild(BuildCompilerRtRuntimesBuild):
+    target = "morello-compiler-rt-runtimes-build"
+    llvm_project = BuildMorelloLLVM
 
 
 class BuildLlvmLibs(_BuildLlvmRuntimes):
