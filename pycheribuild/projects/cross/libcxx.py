@@ -755,6 +755,13 @@ class BuildCompilerRtRuntimesBuild(_BuildLlvmRuntimes):
     default_build_type = BuildType.DEBUG
     _enabled_runtimes: "typing.ClassVar[tuple[str, ...]]" = ("compiler-rt",)
 
+    def setup(self):
+        # HACK: even for the non-native variant we can choose to install to the resource dir to link
+        # when cross-compiling
+        cc = self.llvm_project.get_native_install_path(self.config) / "bin/clang"
+        self._install_dir = self._install_prefix = self.get_compiler_info(cc).get_resource_dir()
+        super().setup()
+
 
 class BuildCompilerRtRuntimesBuildWithHostCompiler(_HostCompilerMixin, BuildCompilerRtRuntimesBuild):
     target = "compiler-rt-runtimes-build-with-host-compiler"
