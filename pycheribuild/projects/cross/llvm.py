@@ -91,6 +91,7 @@ class BuildLLVMBase(CMakeProject):
     skip_misc_llvm_tools: "ClassVar[bool]"
     build_everything: "ClassVar[bool]"
     use_llvm_cxx: "ClassVar[bool]"
+    build_asan: "ClassVar[bool]"
     use_modules_build: "ClassVar[bool]"
     dylib: "ClassVar[bool]"
     install_toolchain_only: "ClassVar[bool]"
@@ -146,6 +147,11 @@ class BuildLLVMBase(CMakeProject):
             "use-in-tree-cxx-libs",
             default=False,
             help="Use in-tree, not host, C++ runtime",
+        )
+        cls.build_asan = cls.add_bool_option(
+            "build-asan",
+            default=False,
+            help="Build compiler-rt sanitizers runtime: ASAN (currently)"
         )
         cls.use_modules_build = cls.add_bool_option(
             "use-llvm-modules-build",
@@ -262,6 +268,32 @@ class BuildLLVMBase(CMakeProject):
                 LIBCXXABI_USE_LLVM_UNWINDER=True,
                 CLANG_DEFAULT_CXX_STDLIB="libc++",
                 CLANG_DEFAULT_RTLIB="compiler-rt",
+            )
+        if self.build_asan:
+            # this is the legacy way of building compiler-rt libs
+            self.included_projects += ["compiler-rt"]
+            self.add_cmake_options(
+                LLVM_BUILD_EXTERNAL_COMPILER_RT=True,
+                COMPILER_RT_BUILD_SANITIZERS=True,
+                COMPILER_RT_BUILD_ORC=False, # it is not yet supported
+            )
+            # XXX: HACK! CMAKE variables not in upstream LLVM!
+            # There are also some hardcodes to pass the external target of compiler-rt
+            class MockProject(AbstractProject):
+                def __init__(self, config, _target: CrossCompileTarget):
+                    super().__init__(config)
+                    self.crosscompile_target = _target
+                    self.needs_sysroot = True
+            tgt = CompilationTargets.CHERIBSD_MORELLO_PURECAP # this is hardcoded
+            tgt_info = tgt.target_info_cls(tgt, MockProject(self.config, tgt)) # pytype: disable=not-instantiable
+            flags = tgt_info.get_essential_compiler_and_linker_flags(perform_sanity_checks=False, default_flags_only=True)
+            self.add_cmake_options(
+                COMPILER_RT_DEFAULT_TARGET_TRIPLE=tgt_info.target_triple,
+                EXTERNAL_ENABLE_PER_TARGET_RUNTIME_DIR=False,
+                EXTERNAL_CMAKE_C_FLAGS=self.commandline_to_str(flags),
+                EXTERNAL_CMAKE_ASM_FLAGS=self.commandline_to_str(flags),
+                EXTERNAL_CMAKE_CXX_FLAGS=self.commandline_to_str(flags),
+                EXTERNAL_CMAKE_SYSTEM_NAME=tgt_info.cmake_system_name
             )
         if self.dylib:
             self.add_cmake_options(LLVM_LINK_LLVM_DYLIB=True)
