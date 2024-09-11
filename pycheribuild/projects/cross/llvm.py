@@ -91,7 +91,7 @@ class BuildLLVMBase(CMakeProject):
     skip_misc_llvm_tools: "ClassVar[bool]"
     build_everything: "ClassVar[bool]"
     use_llvm_cxx: "ClassVar[bool]"
-    build_asan: "ClassVar[bool]"
+    enabled_sanitizers: "ClassVar[list[str]]"
     use_modules_build: "ClassVar[bool]"
     dylib: "ClassVar[bool]"
     install_toolchain_only: "ClassVar[bool]"
@@ -148,10 +148,10 @@ class BuildLLVMBase(CMakeProject):
             default=False,
             help="Use in-tree, not host, C++ runtime",
         )
-        cls.build_asan = cls.add_bool_option(
-            "build-asan",
-            default=False,
-            help="Build compiler-rt sanitizers runtime: ASAN (currently)"
+        cls.enabled_sanitizers = cls.add_list_option(
+            "enabled-sanitizers",
+            default=[],
+            help="List of compiler-rt sanitizers to build (), e.g. asan msan"
         )
         cls.use_modules_build = cls.add_bool_option(
             "use-llvm-modules-build",
@@ -269,13 +269,14 @@ class BuildLLVMBase(CMakeProject):
                 CLANG_DEFAULT_CXX_STDLIB="libc++",
                 CLANG_DEFAULT_RTLIB="compiler-rt",
             )
-        if self.build_asan:
+        if self.enabled_sanitizers and len(self.enabled_sanitizers) > 0:
             # this is the legacy way of building compiler-rt libs
             self.included_projects += ["compiler-rt"]
             self.add_cmake_options(
                 LLVM_BUILD_EXTERNAL_COMPILER_RT=True,
                 COMPILER_RT_BUILD_SANITIZERS=True,
                 COMPILER_RT_BUILD_ORC=False, # it is not yet supported
+                COMPILER_RT_SANITIZERS_TO_BUILD=';'.join(self.enabled_sanitizers),
             )
             # XXX: HACK! CMAKE variables not in upstream LLVM!
             # There are also some hardcodes to pass the external target of compiler-rt
