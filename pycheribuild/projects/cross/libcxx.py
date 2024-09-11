@@ -471,6 +471,7 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
                 COMPILER_RT_BUILD_ORC=False, # it is not yet supported
                 COMPILER_RT_DEFAULT_TARGET_TRIPLE=self.target_info.target_triple,
                 LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=False,
+                COMPILER_RT_SANITIZERS_TO_BUILD=';'.join(self.enabled_sanitizers),
             )
 
             if self.get_compiler_info(self.CC).is_clang:
@@ -612,6 +613,11 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
             help="Number of QEMU instances spawned to run tests (default: number of build jobs (-j flag) / 2)",
             default=lambda c, p: max(c.make_jobs / 2, 1),
             kind=int,
+        )
+        # This is only relevant when building compiler-rt
+        cls.enabled_sanitizers = cls.add_list_option("enabled-sanitizers",
+            default=["asan"],
+            help="List of compiler-rt sanitizers to build (), e.g. asan msan",
         )
 
     def configure(self, **kwargs) -> None:
