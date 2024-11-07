@@ -107,6 +107,9 @@ class _AdditionalFileTemplates:
 
     def get_dot_bash_profile_template(self):
         return include_local_file("files/cheribsd/dot.bash_profile.in")
+    
+    def get_pf_conf_template(self):
+        return include_local_file("files/cheribsd/pf.conf.in")
 
 
 def _default_disk_image_name(_: CheriConfig, directory: Path, project: "BuildDiskImageBase"):
@@ -361,6 +364,9 @@ class BuildDiskImageBase(SimpleProject):
         # enable ssh and set hostname
         # TODO: use separate file in /etc/rc.conf.d/ ?
         rc_conf_contents = self.file_templates.get_rc_conf_template().format(hostname=self.hostname)
+        if self.is_syzkaller:
+            rc_conf_contents += '\npf_enable="YES"'
+            rc_conf_contents += '\npf_rules="/etc/pf.conf"'
         self.create_file_for_image(
             "/etc/rc.conf", contents=rc_conf_contents, mode=0o644, show_contents_non_verbose=False
         )
@@ -526,6 +532,7 @@ class BuildDiskImageBase(SimpleProject):
         if self.is_syzkaller:
             loader_conf_contents += 'autoboot_delay="-1"\nconsole="comconsole"\nkern.kstack_pages="10"\n'
             loader_conf_contents += 'ipsec_load="YES"\ntcphpts_load="YES"\ntcp_rack_load="YES"\n'
+            loader_conf_contents += 'pf_load="YES"\n'
         self.create_file_for_image("/boot/loader.conf", contents=loader_conf_contents, mode=0o644)
 
         # Avoid long boot time on first start due to missing entropy:
@@ -541,6 +548,11 @@ class BuildDiskImageBase(SimpleProject):
                     random_data = os.urandom(4096)
                     f.write(random_data)
             self.add_file_to_image(entropy_file, base_directory=self.tmpdir)
+
+        if self.is_syzkaller:
+            pf_conf_contents = self.file_templates.get_pf_conf_template()
+            self.create_file_for_image("/etc/pf.conf", contents=pf_conf_contents, mode=0o644,
+                show_contents_non_verbose=False)
 
     def add_gdb(self):
         if not self.include_gdb and not self.include_kgdb:
