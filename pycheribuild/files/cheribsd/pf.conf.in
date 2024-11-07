@@ -1,0 +1,3 @@
+pass in proto tcp all flags S/SA synproxy state
+pass in all flags S/SA keep state                 
+pass out all flags S/SA keep state
