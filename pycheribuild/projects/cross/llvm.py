@@ -290,6 +290,7 @@ class BuildLLVMBase(CMakeProject):
             flags = tgt_info.get_essential_compiler_and_linker_flags(perform_sanity_checks=False, default_flags_only=True)
             self.add_cmake_options(
                 COMPILER_RT_DEFAULT_TARGET_TRIPLE=tgt_info.target_triple,
+                COMPILER_RT_BUILD_XRAY=False,
                 EXTERNAL_ENABLE_PER_TARGET_RUNTIME_DIR=False,
                 EXTERNAL_CMAKE_C_FLAGS=self.commandline_to_str(flags),
                 EXTERNAL_CMAKE_ASM_FLAGS=self.commandline_to_str(flags),
