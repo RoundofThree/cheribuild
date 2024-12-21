@@ -860,6 +860,9 @@ class BuildFreeBSD(BuildFreeBSDBase):
         self.make_args.set_with_options(ENABLE_PAST_LOCAL_VULNERABILITIES=self.with_past_local_vulnerabilities)
         self.make_args.set_with_options(ENABLE_PAST_REMOTE_VULNERABILITIES=self.with_past_remote_vulnerabilities)
 
+        if self.mfs_root_image:
+            self.make_args.set(MFS_IMAGE=self.mfs_root_image)
+
         # Compatibility for versions where WITH_DISK_IMAGE_TOOLS_BOOTSTRAP has
         # not been MFC'ed (i.e. FreeBSD 14 and below, and CheriBSD 22.12).
         # Must be set in the environment so it remains lazily evaluated for
